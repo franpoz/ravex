@@ -26,3 +26,5 @@ dist/
 
 # Local data products
 *.csv
+.virtual_documents/
+examples/.virtual_documents/
