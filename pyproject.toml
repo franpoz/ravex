@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ravex"
+version = "0.1.0"
+description = "RAdial VElocity eXplorer"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "astropy",
+    "matplotlib",
+    "pandas",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
