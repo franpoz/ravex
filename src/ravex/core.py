@@ -2477,7 +2477,7 @@ def plot_detectability_map(
     log_period=True,
     log_msini=True,
     colorbar=True,
-    cbar_label='Detection probability',
+    cbar_label='Detection Probability',
     title=None,
 ):
     """
