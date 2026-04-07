@@ -8,7 +8,7 @@
 
 `ravex` is a Python package for simulating and analyzing radial-velocity (RV) observations of planetary systems.
 
-It is designed for research-oriented RV workflows, including synthetic multi-planet time-series generation, signal injection and recovery, mass-precision forecasting, and detectability studies in period–mass space.
+It is designed for research-oriented RV workflows, including synthetic multi-planet time-series generation, signal injection and recovery, mass-precision forecasting, and detectability studies in period–mass space. It is particularly intended for feasibility studies of exoplanet observations with specific instruments (CARMENES, MAROON-X, etc.), and for the preparation of observing proposals.
 
 ---
 
