@@ -1,5 +1,9 @@
 # ravex
 
+<p align="center">
+  <img src="logo.png" alt="RAVEX logo" width="300"/>
+</p>
+
 **RAdial VElocity eXplorer**
 
 `ravex` is a Python package for simulating and analyzing radial-velocity (RV) observations of planetary systems.
