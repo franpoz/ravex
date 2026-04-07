@@ -96,12 +96,16 @@ These dependencies are declared in `pyproject.toml`.
 
 ```text
 ravex/
-├── pyproject.toml
+├── LICENSE
 ├── README.md
+├── pyproject.toml
+├── .gitignore
+├── examples/
 └── src/
-    └── ravex/
-        ├── __init__.py
-        └── core.py
+    ├── ravex/
+    │   ├── __init__.py
+    │   └── core.py
+    └── ravex.egg-info/
 ```
 
 ---
