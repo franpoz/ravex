@@ -526,6 +526,10 @@ _DETMAP_RV = None
 _DETMAP_RV_ERR = None
 _DETMAP_COMMON = None
 
+# Globals used by the parallel precision-tracker workers
+_PRECISION_SYSTEM = None
+_PRECISION_COMMON = None
+
 
 def _init_detectability_map_worker(system, jd, rv, rv_err, common_kwargs):
     """Initializer for parallel detectability-map workers."""
@@ -639,6 +643,94 @@ def _detectability_map_cell_worker(payload):
         'median_p_best_days': np.nanmedian(p_best_vals) if len(p_best_vals) else np.nan,
         'trial_details': trial_details,
     }
+
+
+def _init_precision_tracker_worker(system, common_kwargs):
+    """Initializer for parallel precision-tracker workers."""
+    global _PRECISION_SYSTEM, _PRECISION_COMMON
+    _PRECISION_SYSTEM = system
+    _PRECISION_COMMON = dict(common_kwargs)
+
+
+def _precision_tracker_trial_worker(payload):
+    """Worker that evaluates one Monte Carlo trial of ``precision_tracker``."""
+    system = _PRECISION_SYSTEM
+    cfg = _PRECISION_COMMON
+
+    i_n = int(payload['i_n'])
+    N = int(payload['N'])
+    seed = int(payload['seed'])
+
+    rng = np.random.default_rng(seed)
+    start_time = t.Time(float(cfg['start_time_jd']), format='jd', scale='utc')
+    sigma_eff = float(cfg['sigma_eff_mps']) * u.m / u.s
+    sigma_eff_mps = float(cfg['sigma_eff_mps'])
+
+    try:
+        obs_dates = system.obs_dates(N, float(cfg['span_days']), start_time, rng=rng)
+        _, _, _, phased_obs = system.get_rvs(obs_dates, noise=sigma_eff, rng=rng)
+
+        phase_obs = phased_obs[f"p{cfg['planet_index']}"]['phase']
+        y_obs = phased_obs[f"p{cfg['planet_index']}"]['rv']
+        yerr_vec = np.full_like(y_obs, sigma_eff_mps, dtype=float)
+
+        dense_dates = system.obs_dates(int(cfg['n_dense']), float(cfg['span_days']), start_time, rng=rng)
+
+        fit_mode = cfg['fit_mode']
+        p0 = cfg['initial_guess']
+        bnds = cfg['bounds']
+        planet_index = int(cfg['planet_index'])
+
+        if fit_mode == "mass_gamma":
+            def fmodel(phase, mass, gamma):
+                return system.model_for_fit(
+                    phase, mass, 0.0, dense_dates, planet_index=planet_index, gamma=gamma
+                )
+        elif fit_mode == "mass_e":
+            def fmodel(phase, mass, e):
+                return system.model_for_fit(
+                    phase, mass, e, dense_dates, planet_index=planet_index, gamma=0.0
+                )
+        elif fit_mode == "mass_only":
+            def fmodel(phase, mass):
+                return system.model_for_fit(
+                    phase, mass, 0.0, dense_dates, planet_index=planet_index, gamma=0.0
+                )
+        else:
+            raise ValueError("fit_mode must be 'mass_gamma', 'mass_e', or 'mass_only'.")
+
+        popt, pcov = curve_fit(
+            fmodel,
+            phase_obs,
+            y_obs,
+            p0=p0,
+            bounds=bnds,
+            sigma=yerr_vec,
+            absolute_sigma=True,
+            maxfev=20000,
+        )
+
+        m_fit = float(popt[0])
+        if m_fit <= 0 or (not np.isfinite(m_fit)):
+            return {'i_n': i_n, 'mass': np.nan, 'precision': np.nan, 'ok': False, 'error': 'non_positive_mass'}
+
+        pcov = np.asarray(pcov, dtype=float)
+        if pcov.ndim != 2 or pcov.shape[0] == 0:
+            return {'i_n': i_n, 'mass': np.nan, 'precision': np.nan, 'ok': False, 'error': 'invalid_pcov'}
+
+        var_m = float(pcov[0, 0])
+        if (not np.isfinite(var_m)) or (var_m < 0):
+            return {'i_n': i_n, 'mass': np.nan, 'precision': np.nan, 'ok': False, 'error': 'invalid_mass_variance'}
+
+        dm = float(np.sqrt(var_m))
+        precision = 100.0 * dm / m_fit
+        if not np.isfinite(precision):
+            return {'i_n': i_n, 'mass': np.nan, 'precision': np.nan, 'ok': False, 'error': 'invalid_precision'}
+
+        return {'i_n': i_n, 'mass': m_fit, 'precision': precision, 'ok': True, 'error': None}
+
+    except Exception as e:
+        return {'i_n': i_n, 'mass': np.nan, 'precision': np.nan, 'ok': False, 'error': f"{type(e).__name__}: {e}"}
 
 
 
@@ -1320,6 +1412,9 @@ class MultiPlanetSystem(object):
             sigma_eff_known=None,
             spam_days=None,  # deprecated alias for span_days
             verbose=False,
+            n_jobs=1,
+            chunksize=1,
+            mp_start_method='fork',
         ):
         """
         Estimate the precision of the recovered mass for different numbers of observations N.
@@ -1352,6 +1447,14 @@ class MultiPlanetSystem(object):
             Fitting and simulation parameters (as above).
         verbose : bool, optional
             If True, show debug messages when an individual fit fails.
+        n_jobs : int or None, optional
+            Number of worker processes. If 1, execute serially. If None, use all
+            available CPUs.
+        chunksize : int, optional
+            Chunk size passed to ``ProcessPoolExecutor.map`` when using parallel
+            execution.
+        mp_start_method : {'fork', 'spawn', 'forkserver'}, optional
+            Multiprocessing start method used when ``n_jobs != 1``.
 
         Returns
         -------
@@ -1378,6 +1481,8 @@ class MultiPlanetSystem(object):
             sigma_tot = np.sqrt(sigma_int**2 + jitter**2)
             sigma_eff = (beta * sigma_tot).to(u.m/u.s)
 
+        sigma_eff_mps = float(sigma_eff.to_value(u.m / u.s))
+
         # Baseline planet values (for a reasonable p0)
         P_days = self.planets[planet_index]['orbital_period'].to(u.day).value
 
@@ -1400,96 +1505,87 @@ class MultiPlanetSystem(object):
         else:
             raise ValueError("fit_mode must be 'mass_gamma', 'mass_e', or 'mass_only'.")
 
-        # Prepare output arrays
         N_arr = np.array(n_obs_list, dtype=int)
+        if N_arr.ndim != 1 or N_arr.size == 0:
+            raise ValueError("n_obs_list must be a non-empty 1D sequence of integers.")
+
+        if n_jobs is None:
+            n_jobs = os.cpu_count() or 1
+        n_jobs = int(n_jobs)
+        if n_jobs <= 0:
+            n_jobs = os.cpu_count() or 1
+
+        tasks = []
+        for i_n, N in enumerate(N_arr):
+            trial_seeds = rng.integers(0, 2**32 - 1, size=int(n_trials), dtype=np.uint64)
+            for seed in trial_seeds:
+                tasks.append({
+                    'i_n': int(i_n),
+                    'N': int(N),
+                    'seed': int(seed),
+                })
+
+        common_kwargs = {
+            'planet_index': int(planet_index),
+            'span_days': float(span_days),
+            'start_time_jd': float(start_time.jd),
+            'sigma_eff_mps': sigma_eff_mps,
+            'fit_mode': fit_mode,
+            'bounds': tuple(np.asarray(b, dtype=float).tolist() for b in bounds),
+            'initial_guess': np.asarray(initial_guess, dtype=float).tolist(),
+            'n_dense': int(n_dense),
+        }
+
+        if verbose:
+            print(
+                f"[precision_tracker] tasks={len(tasks)}, n_jobs={n_jobs}, "
+                f"chunksize={int(chunksize)}, fit_mode={fit_mode}"
+            )
+
+        if n_jobs == 1:
+            _init_precision_tracker_worker(self, common_kwargs)
+            trial_results = [_precision_tracker_trial_worker(task) for task in tasks]
+        else:
+            try:
+                ctx = mp.get_context(mp_start_method)
+            except ValueError:
+                ctx = mp.get_context()
+
+            with ProcessPoolExecutor(
+                max_workers=n_jobs,
+                mp_context=ctx,
+                initializer=_init_precision_tracker_worker,
+                initargs=(self, common_kwargs),
+            ) as ex:
+                trial_results = list(ex.map(_precision_tracker_trial_worker, tasks, chunksize=int(chunksize)))
+
+        precisions_by_n = [[] for _ in range(len(N_arr))]
+        masses_by_n = [[] for _ in range(len(N_arr))]
+        success_counts = np.zeros(len(N_arr), dtype=int)
+
+        for res_trial in trial_results:
+            i_n = int(res_trial['i_n'])
+            if res_trial['ok']:
+                precisions_by_n[i_n].append(float(res_trial['precision']))
+                masses_by_n[i_n].append(float(res_trial['mass']))
+                success_counts[i_n] += 1
+            elif verbose:
+                print(f"[DEBUG] N={N_arr[i_n]}: curve_fit failed -> {res_trial['error']}")
+
         prec_med, prec_p16, prec_p84 = [], [], []
         mass_med, mass_p16, mass_p84 = [], [], []
 
-        # Loop over N
-        for N in N_arr:
-            precisions = []
-            masses = []
-
-            for _ in range(n_trials):
-                # Synthetic dates for this trial
-                obs_dates = self.obs_dates(N, span_days, start_time,rng=rng)
-
-                # Signal with effective noise
-                jd_obs, rv_obs, phases_obs, phased_obs = self.get_rvs(obs_dates, noise=sigma_eff,rng=rng)
-
-                # Phase-folded data (sorted) for the selected planet
-                phase_obs = phased_obs[f'p{planet_index}']['phase']
-                y_obs     = phased_obs[f'p{planet_index}']['rv']
-                yerr_vec  = np.full_like(y_obs, sigma_eff.to(u.m/u.s).value, dtype=float)
-
-                # Dense grid for the model (same time range)
-                dense_dates = self.obs_dates(n_dense, span_days, start_time,rng=rng)
-
-                # Define the model function depending on fit_mode
-                if fit_mode == "mass_gamma":
-                    # params = [mass, gamma]; e fixed (e.g. 0.0)
-                    def fmodel(phase, mass, gamma):
-                        return self.model_for_fit(phase, mass, 0.0,
-                                                    dense_dates, planet_index=planet_index, gamma=gamma)
-                    p0 = initial_guess
-                    bnds = bounds
-
-                elif fit_mode == "mass_e":
-                    # params = [mass, e]; gamma=0
-                    def fmodel(phase, mass, e):
-                        return self.model_for_fit(phase, mass, e,
-                                                    dense_dates, planet_index=planet_index, gamma=0.0)
-                    p0 = initial_guess
-                    bnds = bounds
-
-                elif fit_mode == "mass_only":
-                    # params = [mass]; e=0 and gamma=0
-                    def fmodel(phase, mass):
-                        return self.model_for_fit(phase, mass, 0.0,
-                                                    dense_dates, planet_index=planet_index, gamma=0.0)
-                    p0 = initial_guess
-                    bnds = bounds
-
-                # Fit
-                # try:
-                #     popt, pcov = curve_fit(fmodel, phase_obs, y_obs,
-                #                            p0=p0, bounds=bnds,
-                #                            sigma=yerr_vec, absolute_sigma=True,
-                #                            maxfev=20000)
-                # except Exception:
-                #     # If one trial does not converge, skip it
-                #     continue
-                try:
-                    popt, pcov = curve_fit(fmodel, phase_obs, y_obs,
-                                           p0=p0, bounds=bnds,
-                                           sigma=yerr_vec, absolute_sigma=True,
-                                           maxfev=20000)
-                except Exception as e:
-                    if verbose:
-                        print(f"[DEBUG] N={N}: curve_fit failed -> {type(e).__name__}: {e}")
-                    continue
-
-
-
-                # Extract mass and its error
-                if fit_mode == "mass_gamma":
-                    m_fit = popt[0]; dm = np.sqrt(np.diag(pcov))[0]
-                elif fit_mode == "mass_e":
-                    m_fit = popt[0]; dm = np.sqrt(np.diag(pcov))[0]
-                else:
-                    m_fit = popt[0]; dm = np.sqrt(np.diag(pcov))[0]
-
-                if m_fit <= 0:
-                    continue
-
-                precisions.append(100.0 * dm / m_fit)  # in %
-                masses.append(m_fit)
-
-            # Statistics for this N
+        for precisions, masses in zip(precisions_by_n, masses_by_n):
             if len(precisions) == 0:
-                prec_med.append(np.nan); prec_p16.append(np.nan); prec_p84.append(np.nan)
-                mass_med.append(np.nan); mass_p16.append(np.nan); mass_p84.append(np.nan)
+                prec_med.append(np.nan)
+                prec_p16.append(np.nan)
+                prec_p84.append(np.nan)
+                mass_med.append(np.nan)
+                mass_p16.append(np.nan)
+                mass_p84.append(np.nan)
             else:
+                precisions = np.asarray(precisions, dtype=float)
+                masses = np.asarray(masses, dtype=float)
                 prec_med.append(np.nanmedian(precisions))
                 prec_p16.append(np.nanpercentile(precisions, 16))
                 prec_p84.append(np.nanpercentile(precisions, 84))
@@ -1508,8 +1604,13 @@ class MultiPlanetSystem(object):
             'mass_p16': np.array(mass_p16),
             'mass_p84': np.array(mass_p84),
             'P_days': P_days,
-            'sigma_eff_mps': sigma_eff.to(u.m/u.s).value,
-            'fit_mode': fit_mode
+            'sigma_eff_mps': sigma_eff_mps,
+            'fit_mode': fit_mode,
+            'n_trials': int(n_trials),
+            'n_trials_success': success_counts,
+            'n_jobs': int(n_jobs),
+            'chunksize': int(chunksize),
+            'mp_start_method': mp_start_method,
         }
         return results
 
