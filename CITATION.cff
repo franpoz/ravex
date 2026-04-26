@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use ravex in your research, please cite this software."
+title: "ravex: RAdial VElocity eXplorer"
+version: "0.1.0"
+type: software
+authors:
+  - family-names: "Pozuelos"
+    given-names: "Francisco J."
+  - family-names: "Varas"
+    given-names: "Roberto"
+repository-code: "https://github.com/franpoz/ravex"
+url: "https://github.com/franpoz/ravex"
+license: "BSD-3-Clause"
+keywords:
+  - astronomy
+  - astrophysics
+  - exoplanets
+  - radial velocities
+  - signal recovery
+  - detectability
+  - planetary systems
