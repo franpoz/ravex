@@ -8,6 +8,31 @@ version = "0.1.0"
 description = "RAdial VElocity eXplorer"
 readme = "README.md"
 requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Francisco J. Pozuelos" },
+    { name = "Roberto Varas" }
+]
+keywords = [
+    "astronomy",
+    "astrophysics",
+    "exoplanets",
+    "radial velocities",
+    "signal recovery",
+    "detectability",
+    "planetary systems"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Physics"
+]
 dependencies = [
     "numpy",
     "scipy",
@@ -15,6 +40,11 @@ dependencies = [
     "matplotlib",
     "pandas",
 ]
+
+[project.urls]
+Homepage = "https://github.com/franpoz/ravex"
+Repository = "https://github.com/franpoz/ravex"
+Issues = "https://github.com/franpoz/ravex/issues"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
