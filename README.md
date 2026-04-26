@@ -60,8 +60,9 @@ If you use `ravex` in your research, please cite the archived software release:
 
 For the first public release, please cite:
 
-Pozuelos, F. J., & Varas, R. (2026). `ravex`: RAdial VElocity eXplorer, v0.1.0. Zenodo. [https://doi.org/10.5281/zenodo.19797145](https://doi.org/10.5281/zenodo.19797145)
----
+Pozuelos, F. J., & Varas, R. (2026). *ravex`: RAdial VElocity eXplorer*, v0.1.0. Zenodo. [https://doi.org/10.5281/zenodo.19797145](https://doi.org/10.5281/zenodo.19797145)
+
+
 
 ## Current features
 
