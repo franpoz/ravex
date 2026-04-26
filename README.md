@@ -51,6 +51,18 @@ Examples include:
   Feasibility assessment for radial-velocity follow-up of a nearby habitable-zone mini-Neptune.
   
 ---
+
+## Citation
+
+If you use `ravex` in your research, please cite the archived software release:
+
+[![DOI](https://zenodo.org/badge/1201267820.svg)](https://doi.org/10.5281/zenodo.19797144)
+
+For the first public release, please cite:
+
+Pozuelos, F. J., & Varas, R. (2026). `ravex`: RAdial VElocity eXplorer, v0.1.0. Zenodo. [https://doi.org/10.5281/zenodo.19797145](https://doi.org/10.5281/zenodo.19797145)
+---
+
 ## Current features
 
 ### RV simulation
@@ -173,14 +185,6 @@ During this early stage, the most useful contributions are likely to be:
 - documentation improvements,
 - example notebooks,
 - validation against benchmark RV use cases.
-
----
-
-## Citation
-
-Citation metadata and a software DOI will be added in a future release.
-
-The planned workflow is to archive versioned GitHub releases through Zenodo so that ravex can be cited through a DOI.
 
 ---
 
