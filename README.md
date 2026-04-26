@@ -12,6 +12,13 @@ It is designed for research-oriented RV workflows, including synthetic multi-pla
 
 ---
 
+## Authors
+
+- **Lead developer:** Francisco J. Pozuelos (IAA-CSIC)
+- **Contributor:** Roberto Varas (IAA-CSIC)
+
+---
+
 ## Overview
 
 `ravex` provides a compact framework to:
@@ -28,7 +35,22 @@ It is designed for research-oriented RV workflows, including synthetic multi-pla
 The package is currently organized around the `MultiPlanetSystem` class and a small set of supporting utility functions.
 
 ---
+## Scientific applications
 
+`ravex` has been used to support radial-velocity follow-up planning, mass-precision forecasts, and detectability analyses in the context of real exoplanetary systems. These applications illustrate the intended use of `ravex` as a research-oriented tool for designing RV observing strategies, estimating the number of measurements required to reach a target mass precision, and exploring detectability in period--mass parameter space.
+
+Examples include:
+
+- [Peláez-Torres et al. 2026, *A gem system with a lava world and a habitable zone sub-Neptune orbiting TOI-1752*](https://ui.adsabs.harvard.edu/abs/2026arXiv260415816P/abstract)  
+  RV follow-up prospects and mass-measurement feasibility for a multi-planet system including a short-period lava-world candidate and a habitable-zone sub-Neptune.
+
+- [Morello et al. 2026, *The K-dwarfs Survey I. Four Validated Planets from the Radius Valley to the Neptune Desert*](https://ui.adsabs.harvard.edu/abs/2026MNRAS.tmp..176M/abstract)  
+  RV mass-precision forecasts and follow-up prioritization for validated transiting planets around K-dwarf stars.
+
+- [Barkaoui et al. 2025, *TOI-7166 b: a habitable zone mini-Neptune planet around a nearby low-mass star*](https://ui.adsabs.harvard.edu/abs/2025MNRAS.544.2637B/abstract)  
+  Feasibility assessment for radial-velocity follow-up of a nearby habitable-zone mini-Neptune.
+  
+---
 ## Current features
 
 ### RV simulation
@@ -168,12 +190,6 @@ This project is distributed under the BSD 3-Clause License.
 
 A LICENSE file is included in the root of the repository.
 
-
----
-## Authors
-
-- **Lead developer:** Francisco J. Pozuelos (IAA-CSIC)
-- **Contributor:** Roberto Varas (IAA-CSIC)
 
 ---
 
