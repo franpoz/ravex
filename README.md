@@ -56,7 +56,7 @@ Examples include:
 
 If you use `ravex` in your research, please cite the archived software release:
 
-[![DOI](https://zenodo.org/badge/1201267820.svg)](https://doi.org/10.5281/zenodo.19797144)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.19797145-blue)](https://doi.org/10.5281/zenodo.19797145)
 
 For the first public release, please cite:
 
